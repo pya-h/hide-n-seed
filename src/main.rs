@@ -1,5 +1,4 @@
 use std::{fs, io};
-use std::io::ErrorKind;
 
 const SEPARATOR: &[u8] = "###$$$!!!WHO-KNOWS-WHAT-COMES-NEXT!!!$$$###".as_bytes();
 
@@ -18,7 +17,7 @@ const SEPARATOR: &[u8] = "###$$$!!!WHO-KNOWS-WHAT-COMES-NEXT!!!$$$###".as_bytes(
 fn read_file_bytes(filename: &str) -> Vec<u8> {
     match fs::read(filename) {
         Ok(bytes) => bytes,
-        Err(ref err) if err.kind() == ErrorKind::NotFound => panic!("File:{} not found.", filename),
+        Err(ref err) if err.kind() == io::ErrorKind::NotFound => panic!("File:{} not found.", filename),
         Err(err) => panic!("{}", err),
     }
 }
@@ -28,6 +27,43 @@ fn hide_secret_file(image_path: &str, secret_file_path: &str, output_path: &str)
 
     let output_dta = concat_bytes!(image_data, SEPARATOR, secret_file_path);
     fs::write(output_path, output_dta)
+}
+
+fn extract_secret_bytes(bytes: &Vec<u8>, start_index: usize) -> usize {
+
+    0
+}
+
+fn extract_secret_file(filename: &str) {
+    let separator_length = SEPARATOR.len();
+  match fs::read(filename)  {
+    Ok(bytes) => {
+        let mut separator_index = 0;
+        let mut i = 0;
+        let bytes_length = bytes.len();
+
+        while i <= bytes_length {
+            if i != separator_length {
+
+                if &bytes[i] == &SEPARATOR[separator_index] {
+                    separator_index += 1;
+                } else {
+                    separator_index = 0;
+                }
+            } else {
+                i += extract_secret_bytes(&bytes, i + 1);
+                separator_index = 0;
+            }
+            i += 1;
+        }
+    }
+    Err(ref err) if err.kind() == io::ErrorKind::NotFound => {
+
+    }
+    Err(err) => {
+
+    }
+  } 
 }
 
 fn main() {
