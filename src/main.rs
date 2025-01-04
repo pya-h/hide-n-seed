@@ -25,66 +25,133 @@ fn hide_secret_file(image_path: &str, secret_file_path: &str, output_path: &str)
     let image_data = read_file_bytes(image_path);
     let secret_file_path = read_file_bytes(secret_file_path);
 
-    let output_dta = concat_bytes!(image_data, SEPARATOR, secret_file_path);
-    fs::write(output_path, output_dta)
+    let output_data = concat_bytes!(image_data, SEPARATOR, secret_file_path);
+    fs::write(output_path, output_data)
 }
 
-fn extract_secret_bytes(bytes: &Vec<u8>, start_index: usize) -> usize {
-
-    0
+fn extract_secret_file(bytes: &Vec<u8>, start: usize, end: usize, file_number: usize) -> Result<(), io::Error> {
+    let end = if end >= bytes.len() {
+        bytes.len()
+    } else {
+        end
+    };
+    fs::write(format!("secret_x_{}", file_number), &bytes[start..end])
 }
 
-fn extract_secret_file(filename: &str) {
+fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize) {
+    let mut i = start_index;
+    let length = bytes.len();
     let separator_length = SEPARATOR.len();
-  match fs::read(filename)  {
-    Ok(bytes) => {
-        let mut separator_index = 0;
-        let mut i = 0;
-        let bytes_length = bytes.len();
-
-        while i <= bytes_length {
-            if i != separator_length {
-
-                if &bytes[i] == &SEPARATOR[separator_index] {
-                    separator_index += 1;
-                } else {
-                    separator_index = 0;
-                }
+    let mut separator_index = 0;
+    let mut files_extracted = 0;
+    while i < length {
+        if separator_index < separator_length {
+            if &bytes[i] == &SEPARATOR[separator_index] {
+                separator_index += 1;
             } else {
-                i += extract_secret_bytes(&bytes, i + 1);
                 separator_index = 0;
             }
-            i += 1;
+        } else {
+            match extract_secret_file(&bytes, start_index, i - separator_length, files_extracted + 1) {
+                Err(err) => {
+
+                }
+                _ => {
+                    files_extracted += 1;
+                    println!("File#{} extracted", files_extracted);
+                }
+            }
+            separator_index = 0;
+            start_index = i;
+        }
+        i += 1;
+    }
+    match extract_secret_file(&bytes, start_index, length, files_extracted + 1) {
+        Err(err) => {
+
+        }
+        _ => {
+            files_extracted += 1;
+            println!("File#{} extracted", files_extracted);
         }
     }
-    Err(ref err) if err.kind() == io::ErrorKind::NotFound => {
+}
 
-    }
-    Err(err) => {
+fn process_combined_file(filename: &str) {
+    let separator_length = SEPARATOR.len();
+    match fs::read(filename)  {
+        Ok(bytes) => {
+            let mut separator_index = 0;
+            let mut i = 0;
+            let bytes_length = bytes.len();
 
+            while i < bytes_length {
+                if separator_index < separator_length {
+                    if &bytes[i] == &SEPARATOR[separator_index] {
+                        separator_index += 1;
+                    } else {
+                        separator_index = 0;
+                    }
+                } else {
+                    start_extracting_secret_files(&bytes, i);
+                    break;
+                }
+                i += 1;
+            }
+        }
+        Err(ref err) if err.kind() == io::ErrorKind::NotFound => {
+
+        }
+        Err(err) => {
+
+        }
     }
-  } 
 }
 
 fn main() {
-    let mut image_path = String::new();
-    let mut secret_file_path = String::new();
+    loop {
+        let mut operation = String::new();
+        println!("- - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
+        println!("SELECT OPERATION:\n\t[H]IDE\n\t[E]XTRACT\n\t[Q]UIT");
+        println!("- - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
+        io::stdin().read_line(&mut operation).unwrap();
+        match operation.trim() {
+            "H" | "h" => {
+                let mut image_path = String::new();
+                let mut secret_file_path = String::new();
 
-    println!("Image Path: ");
-    io::stdin().read_line(&mut image_path).unwrap();
-    println!("File Path: ");
-    io::stdin().read_line(&mut secret_file_path).unwrap();
+                println!("Image Path: ");
+                io::stdin().read_line(&mut image_path).unwrap();
+                println!("File Path: ");
+                io::stdin().read_line(&mut secret_file_path).unwrap();
 
-    let mut output_path = String::new();
-    println!("Output Path: ");
-    io::stdin().read_line(&mut output_path).unwrap();  // TODO: It's better to automatically put the image extension at the end of the filename,
-    // since user may enter wrong or mismatched extension
+                let mut output_path = String::new();
+                println!("Output Path: ");
+                io::stdin().read_line(&mut output_path).unwrap();  // TODO: It's better to automatically put the image extension at the end of the filename,
+                // since user may enter wrong or mismatched extension
 
-    println!("Processing ...");
-    match hide_secret_file(&image_path.trim(), &secret_file_path.trim(), &output_path.trim()) {
-        Ok(()) => println!("Successfully hid your requested file inside the image."),
-        Err(err) => println!("Failed to hide your requested file:\tReason:\n{}", err),
-    };
+                println!("Processing ...");
+                match hide_secret_file(&image_path.trim(), &secret_file_path.trim(), &output_path.trim()) {
+                    Ok(()) => println!("Successfully hid your requested file inside the image."),
+                    Err(err) => println!("Failed to hide your requested file:\tReason:\n{}", err),
+                };
+            },
+            "E" | "e" => {
+                let mut combined_file_path = String::new();
+
+                println!("File Path: ");
+                io::stdin().read_line(&mut combined_file_path).unwrap();
+                process_combined_file(combined_file_path.trim());
+            }
+            "Q" | "q" => {
+                println!("FUCK U & HAVE A NICE DAY.");
+                break;
+            }
+            _ => {
+                println!("BITE ME.");
+            }
+        }
+    }
 
     // TODO: Add extracting ,,,
 }
