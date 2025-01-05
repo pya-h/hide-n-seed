@@ -14,6 +14,11 @@ const SEPARATOR: &[u8] = "###$$$!!!WHO-KNOWS-WHAT-COMES-NEXT!!!$$$###".as_bytes(
         };
 }
 
+#[macro_export] macro_rules! beep {
+     () => {
+         print!("\x07");
+     };
+ }
 fn read_file_bytes(filename: &str) -> Vec<u8> {
     match fs::read(filename) {
         Ok(bytes) => bytes,
@@ -112,8 +117,8 @@ fn process_combined_file(filename: &str) -> Result<(), String> {
     };
     Ok(())
 }
-
 fn main() {
+    beep!();
     loop {
         let mut operation = String::new();
         println!("- - - - - - - - - - - - - - - - - - - - - - - - - - - - -");
@@ -137,20 +142,23 @@ fn main() {
 
                 println!("Processing ...");
                 match hide_secret_file(&image_path.trim(), &secret_file_path.trim(), &output_path.trim()) {
-                    Ok(()) => println!("Successfully hid your requested file inside the image."),
-                    Err(err) => println!("Failed to hide your requested file:\tReason:\n{}", err),
+                    Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
+                    Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
                 };
             },
             "E" | "e" => {
                 let mut combined_file_path = String::new();
 
                 println!("File Path: ");
-                io::stdin().read_line(&mut combined_file_path).unwrap(); // TODO: Rellace these .unwrap usages too, since they crash app thread
+                io::stdin().read_line(&mut combined_file_path).unwrap(); // TODO: Replace these .unwrap and panic usages too, since they crash app thread
                 if let Err(err) = process_combined_file(combined_file_path.trim()) {
                     println!("FUCK! {}", err);
+                } else {
+                    beep!();
                 }
             }
             "Q" | "q" => {
+                beep!();
                 println!("FUCK U & HAVE A NICE DAY.");
                 break;
             }
