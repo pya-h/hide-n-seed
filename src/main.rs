@@ -38,12 +38,13 @@ fn extract_secret_file(bytes: &Vec<u8>, start: usize, end: usize, file_number: u
     fs::write(format!("secret_x_{}", file_number), &bytes[start..end])
 }
 
-fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize) {
+fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize) -> usize {
     let mut i = start_index;
     let length = bytes.len();
     let separator_length = SEPARATOR.len();
     let mut separator_index = 0;
     let mut files_extracted = 0;
+
     while i < length {
         if separator_index < separator_length {
             if &bytes[i] == &SEPARATOR[separator_index] {
@@ -54,7 +55,7 @@ fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize) {
         } else {
             match extract_secret_file(&bytes, start_index, i - separator_length, files_extracted + 1) {
                 Err(err) => {
-
+                    println!("Error ectracting file: {}", err.to_string())
                 }
                 _ => {
                     files_extracted += 1;
@@ -74,10 +75,11 @@ fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize) {
             files_extracted += 1;
             println!("File#{} extracted", files_extracted);
         }
-    }
+    };
+    files_extracted
 }
 
-fn process_combined_file(filename: &str) {
+fn process_combined_file(filename: &str) -> Result<(), String> {
     let separator_length = SEPARATOR.len();
     match fs::read(filename)  {
         Ok(bytes) => {
@@ -93,19 +95,22 @@ fn process_combined_file(filename: &str) {
                         separator_index = 0;
                     }
                 } else {
-                    start_extracting_secret_files(&bytes, i);
+                    if start_extracting_secret_files(&bytes, i) == 0 {
+                        return Err(String::from("Found some secret files but couldn't extract them."));
+                    }
                     break;
                 }
                 i += 1;
             }
         }
         Err(ref err) if err.kind() == io::ErrorKind::NotFound => {
-
+            return Err(String::from("Can not find the file specified!"));
         }
         Err(err) => {
-
+            return Err(err.to_string());
         }
-    }
+    };
+    Ok(())
 }
 
 fn main() {
@@ -140,8 +145,10 @@ fn main() {
                 let mut combined_file_path = String::new();
 
                 println!("File Path: ");
-                io::stdin().read_line(&mut combined_file_path).unwrap();
-                process_combined_file(combined_file_path.trim());
+                io::stdin().read_line(&mut combined_file_path).unwrap(); // TODO: Rellace these .unwrap usages too, since they crash app thread
+                if let Err(err) = process_combined_file(combined_file_path.trim()) {
+                    println!("FUCK! {}", err);
+                }
             }
             "Q" | "q" => {
                 println!("FUCK U & HAVE A NICE DAY.");
@@ -153,5 +160,4 @@ fn main() {
         }
     }
 
-    // TODO: Add extracting ,,,
 }
