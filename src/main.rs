@@ -144,7 +144,7 @@ fn main() {
     beep!();
     loop {
         let mut operation = String::new();
-        !try_reading_string(
+        try_reading_string(
             "- - - - - - - - - - - - - - - - - - - - - - - - - - - - -\nSELECT OPERATION:\n\t[H]IDE\n\t[E]XTRACT\n\t[Q]UIT\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - -",
                          &mut operation);
 
