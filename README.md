@@ -6,5 +6,5 @@
 <h2>TODOs</h2>
 <ul>
     <li>Multi-Secret Files inside image feature</li>
-    <li>Extract secret files by their actual name</li>
+    <li><del>Extract secret files by their actual name</del></li>
 </ul>

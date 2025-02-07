@@ -45,11 +45,23 @@ fn read_file_bytes(filename: &str) -> Vec<u8> {
         Err(err) => panic!("{}", err),
     }
 }
+
+fn get_short_filename(filename: &str) -> &str {
+    let filename_as_bytes = filename.as_bytes();
+    for i in filename.len()..0 {
+        if filename_as_bytes[i] as char == '/' {
+            return &filename[i+1..];
+        }
+    }
+    &filename[..]
+}
+
 fn hide_secret_file(image_path: &str, secret_file_path: &str, output_path: &str, file_separator_bytes: &[u8]) -> Result<(), io::Error> {
     let image_data = read_file_bytes(image_path);
-    let secret_file_path = read_file_bytes(secret_file_path);
+    let secret_file = read_file_bytes(secret_file_path);
+    let short_filename = get_short_filename(secret_file_path);
 
-    let output_data = concat_bytes!(image_data, file_separator_bytes, secret_file_path);
+    let output_data = concat_bytes!(image_data, file_separator_bytes, short_filename.as_bytes(), ";".as_bytes(), secret_file);
     fs::write(output_path, output_data)
 }
 
@@ -59,6 +71,17 @@ fn extract_secret_file(bytes: &Vec<u8>, start: usize, end: usize, file_number: u
     } else {
         end
     };
+    let mut file_data_start = start;
+    while file_data_start < end && bytes[file_data_start] as char != ';' {
+        file_data_start += 1;
+    }
+
+    if file_data_start < end {
+        if let Ok(filename) = std::str::from_utf8(&bytes[start..file_data_start]) {
+            return fs::write(filename, &bytes[file_data_start+1..end]);
+        }
+    }
+
     fs::write(format!("secret_x_{}", file_number), &bytes[start..end])
 }
 
