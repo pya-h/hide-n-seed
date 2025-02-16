@@ -48,7 +48,7 @@ fn read_file_bytes(filename: &str) -> Vec<u8> {
 
 fn get_short_filename(filename: &str) -> &str {
     let filename_as_bytes = filename.as_bytes();
-    for i in filename.len()..0 {
+    for i in (0..filename.len()).rev() {
         if filename_as_bytes[i] as char == '/' {
             return &filename[i+1..];
         }
@@ -56,33 +56,41 @@ fn get_short_filename(filename: &str) -> &str {
     &filename[..]
 }
 
-fn hide_secret_file(image_path: &str, secret_file_path: &str, output_path: &str, file_separator_bytes: &[u8]) -> Result<(), io::Error> {
-    let image_data = read_file_bytes(image_path);
-    let secret_file = read_file_bytes(secret_file_path);
-    let short_filename = get_short_filename(secret_file_path);
+fn hide_secret_file(image_path: &str, secret_files_path: &[String], output_path: &str, file_separator_bytes: &[u8]) -> Result<(), io::Error> {
+    let mut output_data: Vec<u8> = read_file_bytes(image_path);
+    for path in secret_files_path {
+        let secret_file = read_file_bytes(path);
+        let short_filename = get_short_filename(path);
+        output_data = concat_bytes!(output_data, file_separator_bytes, short_filename.as_bytes(), "/".as_bytes(), secret_file);
+    }
 
-    let output_data = concat_bytes!(image_data, file_separator_bytes, short_filename.as_bytes(), ";".as_bytes(), secret_file);
     fs::write(output_path, output_data)
 }
 
-fn extract_secret_file(bytes: &Vec<u8>, start: usize, end: usize, file_number: usize) -> Result<(), io::Error> {
+fn extract_secret_file(bytes: &Vec<u8>, start: usize, end: usize, file_number: usize) -> Result<String, io::Error> {
     let end = if end >= bytes.len() {
         bytes.len()
     } else {
         end
     };
     let mut file_data_start = start;
-    while file_data_start < end && bytes[file_data_start] as char != ';' {
+    while file_data_start < end && bytes[file_data_start] as char != '/' {
         file_data_start += 1;
     }
 
     if file_data_start < end {
         if let Ok(filename) = std::str::from_utf8(&bytes[start..file_data_start]) {
-            return fs::write(filename, &bytes[file_data_start+1..end]);
+            return match fs::write(filename.to_string(), &bytes[file_data_start+1..end]) {
+                Ok(_) => Ok(filename.to_string()),
+                Err(err) => Err(err),
+            }
         }
     }
-
-    fs::write(format!("secret_x_{}", file_number), &bytes[start..end])
+    let numbered_filename = format!("secret_x_{}", file_number);
+    match fs::write(numbered_filename.clone(), &bytes[start..end]) {
+        Ok(_) => Ok(numbered_filename),
+        Err(err) => Err(err),
+    }
 }
 
 fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize, file_separator_bytes: &[u8]) -> usize {
@@ -104,9 +112,9 @@ fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize, file_s
                 Err(err) => {
                     println!("Error extracting a file, skipping its data; Reason: {}", err.to_string())
                 }
-                _ => {
+                Ok(filename) => {
                     files_extracted += 1;
-                    println!("File#{} extracted", files_extracted);
+                    println!("{}. '{}' Extracted.", files_extracted, filename);
                 }
             }
             separator_index = 0;
@@ -118,9 +126,9 @@ fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize, file_s
         Err(err) => {
             println!("Error writing extracted data inside a new file; Reason: {}", err.to_string())
         }
-        _ => {
+        Ok(filename) => {
             files_extracted += 1;
-            println!("File#{} extracted", files_extracted);
+            println!("{}. '{}' Extracted.", files_extracted, filename);
         }
     };
     files_extracted
@@ -168,7 +176,7 @@ fn main() {
     loop {
         let mut operation = String::new();
         try_reading_string(
-            "- - - - - - - - - - - - - - - - - - - - - - - - - - - - -\nSELECT OPERATION:\n\t[H]IDE\n\t[E]XTRACT\n\t[Q]UIT\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - -",
+            "- - - - - - - - - - - - - - - - - - - - - - - - - - - - -\nSELECT OPERATION:\n\t[H]IDE\n\t[B]ATCH HIDE\n\t[E]XTRACT\n\t[Q]UIT\n- - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n",
                          &mut operation);
 
         match operation.trim() {
@@ -183,9 +191,36 @@ fn main() {
                     continue;
                 }
                 println!("Processing ...");
-                match hide_secret_file(&image_path.trim(), &secret_file_path.trim(), &output_path.trim(), &file_separator_bytes) {
+                match hide_secret_file(&image_path.trim(), &[secret_file_path.trim().to_string()], &output_path.trim(), &file_separator_bytes) {
                     Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
                     Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
+                };
+            },
+            "B" | "b" => {
+                let mut image_path = String::new();
+                let mut secret_files_path: Vec<String> = Vec::new();
+                let mut output_path = String::new();
+
+                if !try_reading_string("Image Path: ", &mut image_path){
+                    continue;
+                }
+
+                let mut temp = String::new();
+                let mut i = 1;
+                println!("Secret File List: [Empty To End]");
+                while try_reading_string(format!("#{}: ", i).as_str(), &mut temp){
+                    secret_files_path.push(temp.trim().to_string());
+                    i += 1;
+                }
+
+                if !try_reading_string("Output Path: ", &mut output_path) {
+                    continue;
+                }
+
+                println!("Processing ...");
+                match hide_secret_file(&image_path.trim(), &secret_files_path, &output_path.trim(), &file_separator_bytes) {
+                    Ok(()) => { beep!(); println!("Successfully hid your requested files inside the image."); },
+                    Err(err) => println!("FUCK! Failed to hide your requested files:\tReason:\n{}", err),
                 };
             },
             "E" | "e" => {
@@ -194,7 +229,7 @@ fn main() {
                 if !try_reading_string("Combined [By Me] File Path: ", &mut combined_file_path) {
                     continue;
                 }
-                println!("{}", combined_file_path.trim());
+
                 if let Err(err) = process_combined_file(combined_file_path.trim(), &file_separator_bytes) {
                     println!("FUCK! {}", err);
                 } else {
