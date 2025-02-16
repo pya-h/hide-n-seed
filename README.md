@@ -3,8 +3,8 @@
 <h2>RUST</h2>
 <p> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * Simple app for hiding and extracting important files inside another file, usually images.</p>
 
-<h2>TODOs</h2>
+<h2><del>TODOs</del></h2>
 <ul>
-    <li>Multi-Secret Files inside image feature</li>
+    <li><del>Multi-Secret Files inside image feature</del></li>
     <li><del>Extract secret files by their actual name</del></li>
 </ul>
