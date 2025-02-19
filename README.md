@@ -8,3 +8,6 @@
     <li><del>Multi-Secret Files inside image feature</del></li>
     <li><del>Extract secret files by their actual name</del></li>
 </ul>
+
+<h2>INSTALL</h2>
+> sudo dpkg -i ./pkg/hidenseed-package.deb
