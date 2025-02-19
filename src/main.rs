@@ -39,6 +39,36 @@ fn try_reading_string(input_message: &str, target: &mut String) -> bool {
     }
     false
 }
+
+fn get_your_password(retry_count: u8) -> String {
+    if retry_count > 3 {
+        println!("FUCK U! Too many retries!");
+        return String::new();
+    }
+    println!("Password: ");
+    match rpassword::read_password() {
+        Ok(password) => { 
+            println!("Confirm: ");
+            match rpassword::read_password() {
+                Ok(confirm) => {
+                    if password != confirm {
+                        println!("FUCK U! Passwords don't match!");
+                        return get_your_password(retry_count + 1);
+                    }
+                    return password;
+                }
+                Err(err) => {
+                    println!("FUCK! Failed to read your password:\tReason:\n{}", err);
+                }
+            }
+        },
+        Err(err) => {
+            println!("FUCK! Failed to read your password:\tReason:\n{}", err);
+        }
+    };
+    get_your_password(retry_count + 1)
+}
+
 fn read_file_bytes(filename: &str) -> Vec<u8> {
     match fs::read(filename) {
         Ok(bytes) => bytes,
@@ -216,13 +246,18 @@ fn main() {
                 let mut image_path = String::new();
                 let mut secret_file_path = String::new();
                 let mut output_path = String::new();
-                let mut password = String::new();
+
                 if !try_reading_string("Image Path: ", &mut image_path)
                     || !try_reading_string("Secret File Path: ", &mut secret_file_path)
-                    || !try_reading_string("Output Path: ", &mut output_path) 
-                    || !try_reading_string("Password: ", &mut password) {
+                    || !try_reading_string("Output Path: ", &mut output_path) {
                     continue;
                 }
+
+                let password = get_your_password(0);
+                if password.is_empty() {
+                    continue;
+                }
+
                 match encryptor::encrypt(&password, &secret_key_bytes) {
                     Ok((nonce, ciphered_password)) => {
                         println!("Processing ...");
@@ -242,7 +277,6 @@ fn main() {
                 let mut image_path = String::new();
                 let mut secret_files_path: Vec<String> = Vec::new();
                 let mut output_path = String::new();
-                let mut password = String::new();
 
                 if !try_reading_string("Image Path: ", &mut image_path){
                     continue;
@@ -256,8 +290,12 @@ fn main() {
                     i += 1;
                 }
 
-                if !try_reading_string("Output Path: ", &mut output_path)
-                || !try_reading_string("Password: ", &mut password) {
+                if !try_reading_string("Output Path: ", &mut output_path) {
+                    continue;
+                }
+
+                let password = get_your_password(0);
+                if password.is_empty() {
                     continue;
                 }
 
@@ -278,14 +316,22 @@ fn main() {
             },
             "E" | "e" => {
                 let mut combined_file_path = String::new();
-                let mut password = String::new();
+                let mut password = String::from("!");
                 if !try_reading_string("Combined [By Me] File Path: ", &mut combined_file_path) {
                     continue;
                 }
 
                 let mut successfully_completed = false;
+                let mut retry_count = 0;
 
-                while !successfully_completed && try_reading_string("Password: [Empty to Cancel] ", &mut password) {
+                while !successfully_completed && !password.is_empty() && retry_count < 5 {
+                    println!("Password: ");
+                    match rpassword::read_password() {
+                        Ok(_password) => { password = _password; },
+                        Err(_) => {
+                            password = String::new();
+                        }
+                    }
                     match process_combined_file(combined_file_path.trim(), &file_separator_bytes, &password, &secret_key_bytes) {
                         Ok(password_matched) => {
                             successfully_completed = password_matched;
@@ -294,10 +340,15 @@ fn main() {
                             println!("FUCK! {}", err);
                         }
                     }
+                    retry_count += 1;
                 }
 
                 if successfully_completed {
                     beep!();
+                } else if password.is_empty() {
+                    println!("Cancelled!");
+                } else if retry_count >= 5 {
+                    println!("FUCK U! Too many fuckin retries!");
                 }
             }
             "Q" | "q" | "" => {
