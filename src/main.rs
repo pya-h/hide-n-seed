@@ -165,25 +165,18 @@ fn process_combined_file(filename: &str, file_separator_bytes: &[u8], password: 
                     } else {
                         let encrypted_nonce_n_pass = &bytes[hidden_data_start_index..(i-separator_length)];
 
-                        match encryptor::separate_nonce_n_password(encrypted_nonce_n_pass) {
-                            Ok((nonce, ciphered_password)) => {
-                                match encryptor::decrypt(&nonce, &ciphered_password, &secret_key) {
-                                    Ok(actual_password) => {
-                                        println!("{} {}", password, actual_password);
-                                        if password != actual_password.to_string() {
-                                            return Ok(false);
-                                        }
-                                        if start_extracting_secret_files(&bytes, i, &file_separator_bytes) == 0 {
-                                            return Err(String::from("Found some secret files but couldn't extract them."));
-                                        }
-                                    }
-                                    Err(_) => {
-                                        return Err(String::from("Failed comparing passwords! Seems file data is curropted."));
-                                    }
+                        let (nonce, ciphered_password) = encryptor::separate_nonce_n_password(encrypted_nonce_n_pass);
+                        match encryptor::decrypt(&nonce, &ciphered_password, &secret_key) {
+                            Ok(actual_password) => {
+                                if password != actual_password.to_string() {
+                                    return Ok(false);
+                                }
+                                if start_extracting_secret_files(&bytes, i, &file_separator_bytes) == 0 {
+                                    return Err(String::from("Found some secret files but couldn't extract them."));
                                 }
                             }
-                            Err(err) => {
-                                return Err(err.to_string());
+                            Err(_) => {
+                                return Err(String::from("Failed comparing passwords! Seems file data is curropted."));
                             }
                         }
                         break;
@@ -233,8 +226,9 @@ fn main() {
                 match encryptor::encrypt(&password, &secret_key_bytes) {
                     Ok((nonce, ciphered_password)) => {
                         println!("Processing ...");
-                        let password_prefix = concat_bytes!(nonce.as_bytes(), ciphered_password.as_bytes());
-                        match hide_secret_file(&image_path.trim(), &[secret_file_path.trim().to_string()], &output_path.trim(), &file_separator_bytes, &password_prefix) {
+                        let password_prefix = format!("{}{}", nonce, ciphered_password);
+                        let password_prefix_bytes = hex::decode(password_prefix).unwrap();
+                        match hide_secret_file(&image_path.trim(), &[secret_file_path.trim().to_string()], &output_path.trim(), &file_separator_bytes, &password_prefix_bytes) {
                             Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
                             Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
                         };
@@ -270,8 +264,9 @@ fn main() {
                 match encryptor::encrypt(&password, &secret_key_bytes) {
                     Ok((nonce, ciphered_password)) => {
                         println!("Processing ...");
-                        let password_prefix = concat_bytes!(nonce.as_bytes(), ciphered_password.as_bytes());
-                        match hide_secret_file(&image_path.trim(), &secret_files_path, &output_path.trim(), &file_separator_bytes, &password_prefix) {
+                        let password_prefix = format!("{}{}", nonce, ciphered_password);
+                        let password_prefix_bytes = hex::decode(password_prefix).unwrap();
+                        match hide_secret_file(&image_path.trim(), &secret_files_path, &output_path.trim(), &file_separator_bytes, &password_prefix_bytes) {
                             Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
                             Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
                         };
@@ -290,7 +285,7 @@ fn main() {
 
                 let mut successfully_completed = false;
 
-                while try_reading_string("Password: [Empty to Cancel] ", &mut password) && !successfully_completed {
+                while !successfully_completed && try_reading_string("Password: [Empty to Cancel] ", &mut password) {
                     match process_combined_file(combined_file_path.trim(), &file_separator_bytes, &password, &secret_key_bytes) {
                         Ok(password_matched) => {
                             successfully_completed = password_matched;

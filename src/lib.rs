@@ -55,13 +55,8 @@ pub mod encryptor {
         }
     }
 
-    pub fn separate_nonce_n_password(encrypted_nonce_n_pass: &[u8]) -> Result<(String, String), io::Error> {
+    pub fn separate_nonce_n_password(encrypted_nonce_n_pass: &[u8]) -> (String, String) {
         let (nonce_as_bytes, ciphered_text_as_bytes) = encrypted_nonce_n_pass.split_at(NONCE_LENGTH);
-        if let Ok(nonce) = String::from_utf8(nonce_as_bytes.to_vec()) {
-            if let Ok(password) = String::from_utf8(ciphered_text_as_bytes.to_vec()) {
-                return Ok((nonce, password));
-            }
-        }
-        Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid File Data Format! It seems it\'s not created by Me!"))
+        (encode(nonce_as_bytes), encode(ciphered_text_as_bytes))
     }
 }
