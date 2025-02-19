@@ -1,6 +1,7 @@
 use std::{fs, io};
 use dotenv::dotenv;
 use std::env;
+use hide_n_seed::encryptor;
 
 #[macro_export] macro_rules! concat_bytes {
         ($($x:expr), *) => {
@@ -56,8 +57,8 @@ fn get_short_filename(filename: &str) -> &str {
     &filename[..]
 }
 
-fn hide_secret_file(image_path: &str, secret_files_path: &[String], output_path: &str, file_separator_bytes: &[u8]) -> Result<(), io::Error> {
-    let mut output_data: Vec<u8> = read_file_bytes(image_path);
+fn hide_secret_file(image_path: &str, secret_files_path: &[String], output_path: &str, file_separator_bytes: &[u8], encrypted_password: &[u8]) -> Result<(), io::Error> {
+    let mut output_data: Vec<u8> = concat_bytes!(read_file_bytes(image_path), file_separator_bytes, encrypted_password);  
     for path in secret_files_path {
         let secret_file = read_file_bytes(path);
         let short_filename = get_short_filename(path);
@@ -134,13 +135,15 @@ fn start_extracting_secret_files(bytes: &Vec<u8>, mut start_index: usize, file_s
     files_extracted
 }
 
-fn process_combined_file(filename: &str, file_separator_bytes: &[u8]) -> Result<(), String> {
+fn process_combined_file(filename: &str, file_separator_bytes: &[u8], password: &str, secret_key: &[u8; 32]) -> Result<bool, String> {
     let separator_length = file_separator_bytes.len();
     match fs::read(filename)  {
         Ok(bytes) => {
             let mut separator_index = 0;
             let mut i = 0;
             let bytes_length = bytes.len();
+            let mut prefix_separator_index = 0;
+            let mut hidden_data_start_index = 0;
 
             while i < bytes_length {
                 if separator_index < separator_length {
@@ -150,10 +153,41 @@ fn process_combined_file(filename: &str, file_separator_bytes: &[u8]) -> Result<
                         separator_index = 0;
                     }
                 } else {
-                    if start_extracting_secret_files(&bytes, i, &file_separator_bytes) == 0 {
-                        return Err(String::from("Found some secret files but couldn't extract them."));
+                    if hidden_data_start_index == 0 {
+                        hidden_data_start_index = i;
                     }
-                    break;
+                    if prefix_separator_index < separator_length {
+                        if &bytes[i] == &file_separator_bytes[prefix_separator_index] {
+                            prefix_separator_index += 1;
+                        } else {
+                            prefix_separator_index = 0;
+                        }
+                    } else {
+                        let encrypted_nonce_n_pass = &bytes[hidden_data_start_index..(i-separator_length)];
+
+                        match encryptor::separate_nonce_n_password(encrypted_nonce_n_pass) {
+                            Ok((nonce, ciphered_password)) => {
+                                match encryptor::decrypt(&nonce, &ciphered_password, &secret_key) {
+                                    Ok(actual_password) => {
+                                        println!("{} {}", password, actual_password);
+                                        if password != actual_password.to_string() {
+                                            return Ok(false);
+                                        }
+                                        if start_extracting_secret_files(&bytes, i, &file_separator_bytes) == 0 {
+                                            return Err(String::from("Found some secret files but couldn't extract them."));
+                                        }
+                                    }
+                                    Err(_) => {
+                                        return Err(String::from("Failed comparing passwords! Seems file data is curropted."));
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                return Err(err.to_string());
+                            }
+                        }
+                        break;
+                    }
                 }
                 i += 1;
             }
@@ -165,13 +199,18 @@ fn process_combined_file(filename: &str, file_separator_bytes: &[u8]) -> Result<
             return Err(err.to_string());
         }
     };
-    Ok(())
+    Ok(true)
 }
+
 fn main() {
     dotenv().ok();
     let file_separator_string = env::var("FILE_SEPARATOR_TEXT")
         .expect("FILE_SEPARATOR_TEXT is not set! It must be set and never change.");
     let file_separator_bytes = file_separator_string.as_bytes();
+    let secret_key = env::var("SECRET_KEY")
+        .expect("SECRET_KEY is not set! It must be set and never change.");
+    let secret_key_bytes = encryptor::string_to_fixed_array(&secret_key);
+
     beep!();
     loop {
         let mut operation = String::new();
@@ -184,22 +223,32 @@ fn main() {
                 let mut image_path = String::new();
                 let mut secret_file_path = String::new();
                 let mut output_path = String::new();
-
+                let mut password = String::new();
                 if !try_reading_string("Image Path: ", &mut image_path)
                     || !try_reading_string("Secret File Path: ", &mut secret_file_path)
-                    || !try_reading_string("Output Path: ", &mut output_path) {
+                    || !try_reading_string("Output Path: ", &mut output_path) 
+                    || !try_reading_string("Password: ", &mut password) {
                     continue;
                 }
-                println!("Processing ...");
-                match hide_secret_file(&image_path.trim(), &[secret_file_path.trim().to_string()], &output_path.trim(), &file_separator_bytes) {
-                    Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
-                    Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
+                match encryptor::encrypt(&password, &secret_key_bytes) {
+                    Ok((nonce, ciphered_password)) => {
+                        println!("Processing ...");
+                        let password_prefix = concat_bytes!(nonce.as_bytes(), ciphered_password.as_bytes());
+                        match hide_secret_file(&image_path.trim(), &[secret_file_path.trim().to_string()], &output_path.trim(), &file_separator_bytes, &password_prefix) {
+                            Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
+                            Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
+                        };
+                    }
+                    Err(err) => {
+                        println!("FUCK! Failed to encrypt your password:\tReason:\n{}", err);
+                    }
                 };
             },
             "B" | "b" => {
                 let mut image_path = String::new();
                 let mut secret_files_path: Vec<String> = Vec::new();
                 let mut output_path = String::new();
+                let mut password = String::new();
 
                 if !try_reading_string("Image Path: ", &mut image_path){
                     continue;
@@ -213,26 +262,46 @@ fn main() {
                     i += 1;
                 }
 
-                if !try_reading_string("Output Path: ", &mut output_path) {
+                if !try_reading_string("Output Path: ", &mut output_path)
+                || !try_reading_string("Password: ", &mut password) {
                     continue;
                 }
 
-                println!("Processing ...");
-                match hide_secret_file(&image_path.trim(), &secret_files_path, &output_path.trim(), &file_separator_bytes) {
-                    Ok(()) => { beep!(); println!("Successfully hid your requested files inside the image."); },
-                    Err(err) => println!("FUCK! Failed to hide your requested files:\tReason:\n{}", err),
+                match encryptor::encrypt(&password, &secret_key_bytes) {
+                    Ok((nonce, ciphered_password)) => {
+                        println!("Processing ...");
+                        let password_prefix = concat_bytes!(nonce.as_bytes(), ciphered_password.as_bytes());
+                        match hide_secret_file(&image_path.trim(), &secret_files_path, &output_path.trim(), &file_separator_bytes, &password_prefix) {
+                            Ok(()) => { beep!(); println!("Successfully hid your requested file inside the image."); },
+                            Err(err) => println!("FUCK! Failed to hide your requested file:\tReason:\n{}", err),
+                        };
+                    }
+                    Err(err) => {
+                        println!("FUCK! Failed to encrypt your password:\tReason:\n{}", err);
+                    }
                 };
             },
             "E" | "e" => {
                 let mut combined_file_path = String::new();
-
+                let mut password = String::new();
                 if !try_reading_string("Combined [By Me] File Path: ", &mut combined_file_path) {
                     continue;
                 }
 
-                if let Err(err) = process_combined_file(combined_file_path.trim(), &file_separator_bytes) {
-                    println!("FUCK! {}", err);
-                } else {
+                let mut successfully_completed = false;
+
+                while try_reading_string("Password: [Empty to Cancel] ", &mut password) && !successfully_completed {
+                    match process_combined_file(combined_file_path.trim(), &file_separator_bytes, &password, &secret_key_bytes) {
+                        Ok(password_matched) => {
+                            successfully_completed = password_matched;
+                        }
+                        Err(err) => {
+                            println!("FUCK! {}", err);
+                        }
+                    }
+                }
+
+                if successfully_completed {
                     beep!();
                 }
             }
