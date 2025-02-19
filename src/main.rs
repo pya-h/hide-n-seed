@@ -1,6 +1,5 @@
 use std::{fs, io};
-use dotenv::dotenv;
-use std::env;
+use dotenvy_macro::dotenv;
 use hide_n_seed::encryptor;
 
 #[macro_export] macro_rules! concat_bytes {
@@ -226,12 +225,15 @@ fn process_combined_file(filename: &str, file_separator_bytes: &[u8], password: 
 }
 
 fn main() {
-    dotenv().ok();
-    let file_separator_string = env::var("FILE_SEPARATOR_TEXT")
-        .expect("FILE_SEPARATOR_TEXT is not set! It must be set and never change.");
+    let file_separator_string = dotenv!("FILE_SEPARATOR_TEXT");
+    if file_separator_string.is_empty() {
+        panic!("FILE_SEPARATOR_TEXT is not set! It must be set and never change.");
+    }
     let file_separator_bytes = file_separator_string.as_bytes();
-    let secret_key = env::var("SECRET_KEY")
-        .expect("SECRET_KEY is not set! It must be set and never change.");
+    let secret_key = dotenv!("SECRET_KEY");
+    if secret_key.is_empty() {
+        panic!("SECRET_KEY is not set! It must be set and never change.");
+    }
     let secret_key_bytes = encryptor::string_to_fixed_array(&secret_key);
 
     beep!();
