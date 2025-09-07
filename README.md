@@ -1,13 +1,54 @@
-<h1>Hide & Seed</h1>
-<hr />
-<h2>RUST</h2>
-<p> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; * Simple app for combinig/extracting files inside another file, usually images.</p>
+# Hide & Seed
 
-<h2><del>TODOs</del></h2>
-<ul>
-    <li><del>Multi-Secret Files inside image feature</del></li>
-    <li><del>Extract secret files by their actual name</del></li>
-</ul>
+---
 
-<h2>INSTALL</h2>
-> sudo dpkg -i ./pkg/hidenseed-package.deb
+## RUST
+
+*Simple app for combining/extracting files inside another file, usually images.*
+
+---
+
+## Overview
+
+**Hide & Seed** is a simple Rust application for combining (hiding) and extracting files within another file, typically images. This tool is useful for basic steganography, allowing you to conceal multiple secret files inside a cover file and later extract them by their original names.
+
+---
+
+## Features
+
+- Combine single or multiple files into a single image or cover file.
+- Full encryption of the secret files before hiding. 
+- Double Securing the hidden part of the final file, using password.
+- Extract hidden files by their actual names (after entering correct password).
+- User-friendly interactive menu-driven interface (not just command-line arguments).
+
+---
+
+## Install
+
+```sh
+sudo dpkg -i ./pkg/hidenseed-package.deb
+```
+
+---
+
+## Usage
+
+1. Run `hidenseed` from your terminal.
+2. Use the interactive menu to select actions such as hiding files or extracting them.
+3. Follow prompts to choose files and options as needed.
+
+---
+
+## Status
+
+*Hide & Seed* is under active development. See the TODOs below for planned features and improvements.
+
+---
+
+## TODOs
+
+- ~~Multi-Secret Files inside image feature~~
+- ~~Extract secret files by their actual name~~
+- ~~Encrypt file data too (inside the final file).~~
+- Create new deb for the encrypt-file-data update.
