@@ -104,7 +104,7 @@ fn hide_secret_file(
 ) -> Result<(), io::Error> {
     return match encryptor::encrypt(&password, &secret_key_bytes) {
         Ok((nonce, ciphered_password)) => {
-            println!("Processing ...");
+            println!("Processing ... This may take a while based on how large the files are ...");
             let encrypted_password =
                 hex::decode(format!("{}{}", nonce, ciphered_password)).unwrap();
             let mut output_data: Vec<u8> = concat_bytes!(
@@ -115,34 +115,28 @@ fn hide_secret_file(
             let password_as_bytes = encryptor::string_to_fixed_array(&password);
             for path in secret_files_path {
                 let short_filename = get_short_filename(path);
-                match String::from_utf8(read_file_bytes(path))
-                    .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
-                {
-                    Ok(secret_file) => match encryptor::encrypt(&secret_file, &password_as_bytes) {
-                        Ok((file_nonce, encrypted_file_data)) => {
-                            let final_encrypted_file_data =
-                                hex::decode(format!("{}{}", file_nonce, encrypted_file_data))
-                                    .unwrap();
-                            output_data = concat_bytes!(
-                                output_data,
-                                file_separator_bytes,
-                                short_filename.as_bytes(),
-                                "/".as_bytes(),
-                                final_encrypted_file_data
-                            );
-                        }
-                        Err(err) => {
-                            if !ignore_troubled_files {
-                                return Err(err);
-                            }
-                            println!("Ignoring file:{} in hide list: {}", short_filename, err);
-                        }
-                    },
+                let file_bytes = read_file_bytes(path);
+                match encryptor::encrypt(file_bytes, &password_as_bytes) {
+                    Ok((file_nonce, encrypted_file_data)) => {
+                        let final_encrypted_file_data =
+                            hex::decode(format!("{}{}", file_nonce, encrypted_file_data)).unwrap();
+                        output_data = concat_bytes!(
+                            output_data,
+                            file_separator_bytes,
+                            short_filename.as_bytes(),
+                            "/".as_bytes(),
+                            final_encrypted_file_data
+                        );
+                        println!("* File `{}` encrypted successfully!", short_filename);
+                    }
                     Err(err) => {
                         if !ignore_troubled_files {
                             return Err(err);
                         }
-                        println!("Ignoring file:{} in hide list: {}", short_filename, err);
+                        println!(
+                            "Failed! File excluded from the hiding list: {}",
+                            short_filename
+                        );
                     }
                 }
             }
@@ -204,6 +198,7 @@ fn start_extracting_secret_files(
     let mut separator_index = 0;
     let mut files_extracted = 0;
     let file_data_decrypt_secret = encryptor::string_to_fixed_array(&password);
+
     while i < length {
         if separator_index < separator_length {
             if &bytes[i] == &file_separator_bytes[separator_index] {
@@ -299,6 +294,7 @@ fn process_combined_file(
                                 if password != actual_password.to_string() {
                                     return Ok(false);
                                 }
+                                print!("Extract the files ... This may take a while based on how large the files are ... ");
                                 if start_extracting_secret_files(
                                     &bytes,
                                     i,

@@ -15,11 +15,12 @@ pub mod encryptor {
         array
     }
 
-    pub fn encrypt(plaintext: &str, key: &[u8; 32]) -> Result<(String, String), io::Error> {
+    pub fn encrypt<T: AsRef<[u8]>>(input: T, key: &[u8; 32]) -> Result<(String, String), io::Error> {
+        let input_bytes = input.as_ref();
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
 
-        match cipher.encrypt(&nonce, plaintext.as_bytes()) {
+        match cipher.encrypt(&nonce, input_bytes) {
             Ok(ciphertext) => Ok((encode(nonce), encode(ciphertext))),
             Err(e) => Err(io::Error::new(io::ErrorKind::InvalidData, e.to_string())),
         }

@@ -47,8 +47,4 @@ sudo dpkg -i ./pkg/hidenseed-package.deb
 ---
 
 ## TODOs
-
-- ~~Multi-Secret Files inside image feature~~
-- ~~Extract secret files by their actual name~~
-- ~~Encrypt file data too (inside the final file).~~
-- Create new deb for the encrypt-file-data update.
+- Maybe create a GUI?
